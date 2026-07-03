@@ -29,14 +29,27 @@ theme.inject_css()
 def render_auth_screen():
     st.title("💰 Get your money into shape")
     st.caption("Track income and expenses, analyze your habits, and stick to your budgets — all in one place.")
+
+    # While resetting a password, show ONLY the reset flow — no tabs, no
+    # login/signup fields — until the user finishes or explicitly goes back.
+    if st.session_state.get("show_forgot"):
+        render_forgot_password_form()
+        return
+
     tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
 
     with tab_login:
-        with st.form("login_form"):
-            email = st.text_input("Email", key="login_email")
-            password = st.text_input("Password", type="password", key="login_pw")
-            submitted = st.form_submit_button("Log in", use_container_width=True)
-        if submitted:
+        # Plain widgets (not st.form) so "Forgot password?" can sit between
+        # the password field and the Log in button — st.form only allows a
+        # single submit button, no other buttons inside it.
+        email = st.text_input("Email", key="login_email")
+        password = st.text_input("Password", type="password", key="login_pw")
+
+        if st.button("Forgot password?", key="toggle_forgot"):
+            st.session_state["show_forgot"] = True
+            st.rerun()
+
+        if st.button("Log in", key="login_submit", use_container_width=True):
             if not email or not password:
                 st.error("Please enter both email and password.")
             else:
@@ -46,15 +59,6 @@ def render_auth_screen():
                     st.rerun()
                 except ValueError as e:
                     st.error(f"Login failed: {e}")
-
-        # "Forgot password?" link sits right under the login form, not on its
-        # own tab. Clicking it just reveals the reset form in place.
-        if st.button("Forgot password?", key="toggle_forgot"):
-            st.session_state["show_forgot"] = not st.session_state.get("show_forgot", False)
-
-        if st.session_state.get("show_forgot"):
-            st.divider()
-            render_forgot_password_form()
 
     with tab_signup:
         with st.form("signup_form"):
@@ -84,11 +88,21 @@ def render_forgot_password_form():
     since Streamlit has no page to catch a redirect's URL token on.
 
     One-time setup required in the Supabase dashboard:
-    Authentication -> Email Templates -> Reset Password -> edit the template
-    so it includes {{ .Token }} (the 6-digit code), e.g.:
+    Authentication -> Email Templates -> Reset Password -> remove the default
+    link/button entirely and use only the code, e.g.:
         "Your password reset code is: {{ .Token }}"
+    (The default template's link points at your project's Site URL, which is
+    what causes a "site can't be reached" error when clicked — since this
+    flow never uses that link, deleting it avoids the confusion.)
     """
+    st.subheader("Reset your password")
     st.caption("We'll email you a 6-digit code to reset your password.")
+
+    if st.button("← Back to log in", key="back_to_login"):
+        st.session_state.pop("show_forgot", None)
+        st.session_state.pop("reset_step", None)
+        st.session_state.pop("pending_reset_email", None)
+        st.rerun()
 
     step = st.session_state.get("reset_step", "request")
 
@@ -127,6 +141,7 @@ def render_forgot_password_form():
                         st.session_state["pending_reset_email"], code, new_password
                     )
                     auth_service.start_session(data)
+                    st.session_state.pop("show_forgot", None)
                     st.session_state.pop("reset_step", None)
                     st.session_state.pop("pending_reset_email", None)
                     st.success("Password reset — you're logged in!")
