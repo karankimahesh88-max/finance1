@@ -29,7 +29,7 @@ theme.inject_css()
 def render_auth_screen():
     st.title("💰 Get your money into shape")
     st.caption("Track income and expenses, analyze your habits, and stick to your budgets — all in one place.")
-    tab_login, tab_signup, tab_forgot = st.tabs(["Log in", "Sign up", "Forgot password?"])
+    tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
 
     with tab_login:
         with st.form("login_form"):
@@ -46,6 +46,15 @@ def render_auth_screen():
                     st.rerun()
                 except ValueError as e:
                     st.error(f"Login failed: {e}")
+
+        # "Forgot password?" link sits right under the login form, not on its
+        # own tab. Clicking it just reveals the reset form in place.
+        if st.button("Forgot password?", key="toggle_forgot"):
+            st.session_state["show_forgot"] = not st.session_state.get("show_forgot", False)
+
+        if st.session_state.get("show_forgot"):
+            st.divider()
+            render_forgot_password_form()
 
     with tab_signup:
         with st.form("signup_form"):
@@ -67,9 +76,6 @@ def render_auth_screen():
                     st.rerun()
                 except ValueError as e:
                     st.error(f"Sign up failed: {e}")
-
-    with tab_forgot:
-        render_forgot_password_form()
 
 
 def render_forgot_password_form():
