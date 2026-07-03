@@ -1,0 +1,10 @@
+streamlit>=1.35.0
+pandas>=2.2.0
+plotly>=5.22.0
+
+# Not needed in mock mode -- only required if you later swap in the real
+# Firebase-backed auth_service/db_service and yfinance-backed stock_service:
+# firebase-admin>=6.5.0
+# requests>=2.31.0
+# yfinance>=0.2.40
+# python-dotenv>=1.0.1
