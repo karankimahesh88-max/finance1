@@ -29,7 +29,7 @@ theme.inject_css()
 def render_auth_screen():
     st.title("💰 Get your money into shape")
     st.caption("Track income and expenses, analyze your habits, and stick to your budgets — all in one place.")
-    tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
+    tab_login, tab_signup, tab_forgot = st.tabs(["Log in", "Sign up", "Forgot password?"])
 
     with tab_login:
         with st.form("login_form"):
@@ -59,11 +59,74 @@ def render_auth_screen():
             else:
                 try:
                     data = auth_service.sign_up(email, password, name)
+                    # sign_up only returns a session (and therefore only reaches
+                    # here) when Supabase email confirmations are OFF — that's
+                    # what makes this an automatic login right after signup.
                     auth_service.start_session(data)
-                    st.success("Account created!")
+                    st.success("Account created — you're logged in!")
                     st.rerun()
                 except ValueError as e:
                     st.error(f"Sign up failed: {e}")
+
+    with tab_forgot:
+        render_forgot_password_form()
+
+
+def render_forgot_password_form():
+    """
+    Two-step reset flow using Supabase's OTP code instead of a redirect link,
+    since Streamlit has no page to catch a redirect's URL token on.
+
+    One-time setup required in the Supabase dashboard:
+    Authentication -> Email Templates -> Reset Password -> edit the template
+    so it includes {{ .Token }} (the 6-digit code), e.g.:
+        "Your password reset code is: {{ .Token }}"
+    """
+    st.caption("We'll email you a 6-digit code to reset your password.")
+
+    step = st.session_state.get("reset_step", "request")
+
+    if step == "request":
+        with st.form("reset_request_form"):
+            email = st.text_input("Email", key="reset_email")
+            submitted = st.form_submit_button("Send reset code", use_container_width=True)
+        if submitted:
+            if not email:
+                st.error("Enter your email address.")
+            else:
+                try:
+                    auth_service.request_password_reset(email)
+                    st.session_state["reset_email"] = email
+                    st.session_state["reset_step"] = "confirm"
+                    st.rerun()
+                except ValueError as e:
+                    st.error(f"Could not send reset code: {e}")
+
+    elif step == "confirm":
+        st.success(f"Code sent to {st.session_state.get('reset_email')}. Check your inbox.")
+        with st.form("reset_confirm_form"):
+            code = st.text_input("6-digit code")
+            new_password = st.text_input("New password (min 6 characters)", type="password")
+            submitted = st.form_submit_button("Reset password", use_container_width=True)
+            back = st.form_submit_button("Use a different email", use_container_width=True)
+        if back:
+            st.session_state["reset_step"] = "request"
+            st.rerun()
+        if submitted:
+            if not code or len(new_password) < 6:
+                st.error("Enter the code and a password of at least 6 characters.")
+            else:
+                try:
+                    data = auth_service.confirm_password_reset(
+                        st.session_state["reset_email"], code, new_password
+                    )
+                    auth_service.start_session(data)
+                    st.session_state.pop("reset_step", None)
+                    st.session_state.pop("reset_email", None)
+                    st.success("Password reset — you're logged in!")
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
 
 
 # ----------------------------------------------------------------------------
@@ -417,7 +480,7 @@ def page_credit_cards(uid: str, currency: str):
                 st.rerun()
 
 
-def page_goals(uid: str, currency: str):
+
     st.header("🎯 Financial Goals")
     sym = CURRENCY_SYMBOLS.get(currency, currency)
 
@@ -668,7 +731,7 @@ def page_calendar(uid: str, currency: str):
                                 unsafe_allow_html=True)
 
 
-def page_settings(uid: str, prefs: dict):
+
     st.header("⚙️ Settings")
     st.subheader("Personalization")
     dark_mode = st.toggle("Dark mode (visual preference, saved to your profile)", value=prefs.get("darkMode", False))
