@@ -94,7 +94,7 @@ def render_forgot_password_form():
 
     if step == "request":
         with st.form("reset_request_form"):
-            email = st.text_input("Email", key="reset_email")
+            email = st.text_input("Email", key="reset_email_input")
             submitted = st.form_submit_button("Send reset code", use_container_width=True)
         if submitted:
             if not email:
@@ -102,14 +102,14 @@ def render_forgot_password_form():
             else:
                 try:
                     auth_service.request_password_reset(email)
-                    st.session_state["reset_email"] = email
+                    st.session_state["pending_reset_email"] = email
                     st.session_state["reset_step"] = "confirm"
                     st.rerun()
                 except ValueError as e:
                     st.error(f"Could not send reset code: {e}")
 
     elif step == "confirm":
-        st.success(f"Code sent to {st.session_state.get('reset_email')}. Check your inbox.")
+        st.success(f"Code sent to {st.session_state.get('pending_reset_email')}. Check your inbox.")
         with st.form("reset_confirm_form"):
             code = st.text_input("6-digit code")
             new_password = st.text_input("New password (min 6 characters)", type="password")
@@ -124,11 +124,11 @@ def render_forgot_password_form():
             else:
                 try:
                     data = auth_service.confirm_password_reset(
-                        st.session_state["reset_email"], code, new_password
+                        st.session_state["pending_reset_email"], code, new_password
                     )
                     auth_service.start_session(data)
                     st.session_state.pop("reset_step", None)
-                    st.session_state.pop("reset_email", None)
+                    st.session_state.pop("pending_reset_email", None)
                     st.success("Password reset — you're logged in!")
                     st.rerun()
                 except ValueError as e:
