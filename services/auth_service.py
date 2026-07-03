@@ -72,6 +72,51 @@ def sign_up(email: str, password: str, name: str) -> dict:
     raise ValueError("Account created — check your email to confirm, then log in.")
 
 
+def request_password_reset(email: str) -> None:
+    """
+    Sends a password-reset email. Requires the Supabase "Reset Password" email
+    template to include {{ .Token }} (a 6-digit code) — see the setup note in
+    render_forgot_password_form. Raises ValueError on failure.
+    """
+    client = get_client()
+    try:
+        client.auth.reset_password_email(email)
+    except Exception as e:
+        raise ValueError(str(e))
+
+
+def confirm_password_reset(email: str, code: str, new_password: str) -> dict:
+    """
+    Verifies the 6-digit code from the reset email, sets the new password,
+    and returns a session dict (same shape as sign_in) so the caller can log
+    the user straight in. Raises ValueError on a bad/expired code.
+    """
+    client = get_client()
+    try:
+        result = client.auth.verify_otp({"email": email, "token": code, "type": "recovery"})
+    except Exception:
+        raise ValueError("That code is invalid or has expired. Request a new one.")
+
+    if not result.user or not result.session:
+        raise ValueError("That code is invalid or has expired. Request a new one.")
+
+    # verify_otp already returns a valid session — use it to authorize the
+    # password update, then keep it as the app's active session.
+    client.auth.set_session(result.session.access_token, result.session.refresh_token)
+    try:
+        client.auth.update_user({"password": new_password})
+    except Exception as e:
+        raise ValueError(f"Could not set new password: {e}")
+
+    return {
+        "uid": result.user.id,
+        "email": result.user.email,
+        "name": (result.user.user_metadata or {}).get("name", ""),
+        "access_token": result.session.access_token,
+        "refresh_token": result.session.refresh_token,
+    }
+
+
 def start_session(data: dict) -> None:
     st.session_state[SESSION_KEY] = data
     # Also point the Supabase client at this user's tokens so subsequent
