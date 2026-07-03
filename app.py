@@ -502,6 +502,7 @@ def page_credit_cards(uid: str, currency: str):
 
 
 
+def page_goals(uid: str, currency: str):
     st.header("🎯 Financial Goals")
     sym = CURRENCY_SYMBOLS.get(currency, currency)
 
@@ -753,6 +754,7 @@ def page_calendar(uid: str, currency: str):
 
 
 
+def page_settings(uid: str, prefs: dict):
     st.header("⚙️ Settings")
     st.subheader("Personalization")
     dark_mode = st.toggle("Dark mode (visual preference, saved to your profile)", value=prefs.get("darkMode", False))
